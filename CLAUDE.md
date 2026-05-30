@@ -118,6 +118,10 @@ jsDelivr URL before publishing** — localhost isn't reachable by anyone else.
 1. **Record Level 2 narration.** L2 scenes are currently **silent** (the question is
    baked into the art). Add `l2-*.mp3` files, extend `NAR`, and set each L2 scene's
    `audio` key. Words: крепост, крокодил, брадва, дракон, врата, принцеса.
+1b. **Record the "try again" cue** → `audio/opitai-pak.mp3` ("Опитай пак!"). Played on
+   any wrong tap; until the file exists the browser speaks it via TTS (`NUDGE_AUDIO`/
+   `NUDGE_TEXT` in CONFIG). Shaped (clip-path polygon) hotspots are supported via a
+   `poly:"x y, x y, …"` field on a hotspot (see `l1-1`'s river/road) — `DEBUG` shows them.
 2. **Fix the broken L2 beat.** `Ниво 2 - 2. Намира оръжие` has **no Р-word** in its
    art (rock / broom / tulip), so the engine **skips it** (l2-1 → l2-3). Re-illustrate
    with a real Р vs non-Р pair, then insert an `l2-2` scene.
