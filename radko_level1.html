@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Юнакът Радко и Вълшебната корона</title>
+<style>
+  /* ============================================================
+     STORYBOOK THEME
+     Warm folk-tale palette, rounded forms, equal-weight choice
+     cards (correct and wrong look identical, per the design).
+     System fonts only — no external font CDN (Canva Code safe).
+     ============================================================ */
+  :root{
+    --parchment:#f6ecd4; --parchment-2:#efe0bf;
+    --ink:#3a2a18; --ink-soft:#6b513a;
+    --forest:#2f6b4f; --river:#3b7ea1; --gold:#d8a435;
+    --gold-deep:#b9852a; --rose:#b23a2e; --night:#243042;
+    --card:#fffaf0; --card-edge:#e6d3a8;
+    --shadow:0 10px 24px rgba(58,42,24,.22);
+    --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --ui:"Segoe UI Rounded","SF Pro Rounded",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:var(--ui); color:var(--ink);
+    background:
+      radial-gradient(120% 80% at 50% -10%, #fff7e6 0%, transparent 60%),
+      repeating-linear-gradient(45deg,#f1e3c4 0 22px,#efe0bf 22px 44px);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  #app{
+    position:relative; width:100%; max-width:760px; height:100%;
+    max-height:560px; aspect-ratio:760/560;
+    margin:auto; border-radius:26px; overflow:hidden;
+    box-shadow:var(--shadow);
+    border:6px solid #fff8ec; outline:3px solid var(--card-edge);
+    background:var(--parchment);
+  }
+  @media (max-height:600px){ #app{max-height:100%;border-radius:0} }
+
+  /* ---- scene scaffold ---- */
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;
+    opacity:0;transform:scale(1.02);pointer-events:none;
+    transition:opacity .45s ease, transform .45s ease;}
+  .scene.active{opacity:1;transform:scale(1);pointer-events:auto;}
+  .stage{position:relative;flex:1;overflow:hidden;}
+  .stage .scenery{position:absolute;inset:0;}
+  .scenery svg{width:100%;height:100%;display:block;}
+
+  /* per-scene atmospheres */
+  .bg-dawn   {background:linear-gradient(#ffe3a8,#ffd089 45%,#9fcf8f);}
+  .bg-forest {background:linear-gradient(#bfe3ef,#8ec9a0 55%,#3f7d52);}
+  .bg-river  {background:linear-gradient(#b9e0ef,#6fb6c9 50%,#2f6b7e);}
+  .bg-bushes {background:linear-gradient(#cfe6c0,#86b878 55%,#3f6b3a);}
+  .bg-vista  {background:linear-gradient(#c7e7f2,#9fd0b6 50%,#5e8f6e);}
+  .bg-gate   {background:linear-gradient(#d8c6e0,#9c89ab 55%,#5b4c69);}
+  .bg-throne {background:linear-gradient(#f4dca0,#e0b86a 50%,#9c6f37);}
+  .bg-win    {background:linear-gradient(#fff0bf,#ffd76b 45%,#e8a13a);}
+
+  /* hero + path progress */
+  .pathstrip{position:absolute;left:0;right:0;bottom:10px;height:46px;
+    display:flex;align-items:center;justify-content:center;gap:10px;}
+  .foot{width:14px;height:14px;border-radius:50%;
+    background:rgba(58,42,24,.18);transition:.4s;}
+  .foot.done{background:var(--gold);box-shadow:0 0 0 3px rgba(216,164,53,.3);}
+  .hero{position:absolute;bottom:42px;width:118px;height:118px;
+    transition:left .6s cubic-bezier(.5,1.4,.4,1);filter:drop-shadow(0 6px 6px rgba(0,0,0,.2));}
+
+  .castle-far{position:absolute;right:5%;bottom:40%;width:150px;opacity:.9;
+    filter:drop-shadow(0 4px 4px rgba(0,0,0,.15));}
+
+  /* ---- narration bar ---- */
+  .narr{display:flex;align-items:center;gap:12px;padding:10px 16px;
+    background:linear-gradient(#fff7e6,#f3e3c0);border-top:3px solid var(--card-edge);}
+  .speaker{flex:none;width:52px;height:52px;border-radius:50%;border:none;
+    background:radial-gradient(circle at 35% 30%,#ffd97a,var(--gold-deep));
+    color:#fff;font-size:24px;cursor:pointer;box-shadow:var(--shadow);
+    display:flex;align-items:center;justify-content:center;transition:transform .15s;}
+  .speaker:active{transform:scale(.9);}
+  .speaker.playing{animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(216,164,53,.5)}50%{box-shadow:0 0 0 12px rgba(216,164,53,0)}}
+  .prompt{font-family:var(--display);font-size:clamp(15px,2.6vw,20px);color:var(--ink-soft);line-height:1.25;}
+
+  /* ---- choices ---- */
+  .choices{display:flex;gap:18px;padding:14px 18px 18px;justify-content:center;}
+  .card{flex:1;max-width:230px;border:none;cursor:pointer;
+    background:var(--card);border-radius:20px;padding:12px 12px 10px;
+    box-shadow:var(--shadow);border:3px solid var(--card-edge);
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    transition:transform .18s;}
+  .card:hover{transform:translateY(-4px);}
+  .card .art{width:100%;aspect-ratio:1;border-radius:14px;overflow:hidden;
+    background:linear-gradient(#fffdf6,#f0e4c8);display:flex;align-items:center;justify-content:center;}
+  .card .art svg,.card .art img{width:78%;height:78%;object-fit:contain;}
+  .card .name{font-family:var(--display);font-size:clamp(16px,3vw,22px);
+    font-weight:600;color:var(--ink);}
+  .card.wiggle{animation:wiggle .5s;}
+  @keyframes wiggle{0%,100%{transform:none}20%{transform:rotate(-4deg) translateX(-5px)}
+    40%{transform:rotate(4deg) translateX(5px)}60%{transform:rotate(-3deg)}80%{transform:rotate(3deg)}}
+  .card.chosen{animation:pop .45s;}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+
+  /* ---- big buttons (start / win) ---- */
+  .centerbox{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:flex-end;padding-bottom:84px;gap:14px;}
+  .title{font-family:var(--display);text-align:center;color:#fff;
+    text-shadow:0 3px 0 var(--gold-deep),0 6px 10px rgba(0,0,0,.3);
+    font-size:clamp(22px,5vw,38px);line-height:1.1;margin:0 18px;}
+  .bigbtn{font-family:var(--display);font-size:clamp(18px,3.4vw,24px);font-weight:700;
+    color:#fff;border:none;cursor:pointer;padding:14px 34px;border-radius:40px;
+    background:linear-gradient(var(--forest),#23533d);box-shadow:var(--shadow);
+    border:3px solid rgba(255,255,255,.5);transition:transform .15s;}
+  .bigbtn:active{transform:scale(.94);}
+  .bigbtn.gold{background:linear-gradient(var(--gold),var(--gold-deep));}
+  .bigbtn.rose{background:linear-gradient(#cf5448,var(--rose));}
+  .winrow{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;}
+
+  /* loader + overlay */
+  #loader,#overlay{position:absolute;inset:0;z-index:20;display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:var(--parchment);text-align:center;padding:24px;}
+  #overlay{background:rgba(36,48,66,.86);color:#fff;}
+  .bar{width:60%;max-width:280px;height:14px;border-radius:8px;background:#e0cfa6;overflow:hidden;}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--gold-deep));transition:width .25s;}
+  .hidden{display:none!important;}
+  .confetti{position:absolute;width:10px;height:14px;top:-20px;border-radius:2px;animation:fall linear forwards;}
+  @keyframes fall{to{transform:translateY(640px) rotate(540deg);opacity:.9}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="loader">
+    <div style="font-family:var(--display);font-size:26px;color:var(--ink)">Юнакът Радко</div>
+    <div class="bar"><i id="barfill"></i></div>
+    <div style="color:var(--ink-soft)">Зарежда приказката…</div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   1. CONFIG  —  the only block you normally edit
+   ================================================================
+   Art and audio are independent switches:
+
+   ART_SOURCE   "svg"   -> drawn art baked into this file. No hosting,
+                           no licensing issues. (Recommended.)
+                "image" -> load PNG/JPG from IMAGE_BASE instead.
+
+   AUDIO_SOURCE "files" -> your real recordings, hosted on jsDelivr.
+                "tts"   -> browser text-to-speech, for offline testing.
+
+   LOCAL DEV: to test against a VS Code Live Server, set AUDIO_SOURCE
+   to "files" and point AUDIO_BASE at "audio/" (relative) or
+   "http://localhost:5500/audio/". Flip back to the jsDelivr URL
+   before you publish — localhost is not reachable by anyone else.   */
+
+const ART_SOURCE   = "svg";
+const AUDIO_SOURCE = "files";
+
+// Your 8 recordings, served from GitHub via jsDelivr:
+const AUDIO_BASE = "https://cdn.jsdelivr.net/gh/myAlexD/radko-game@main/audio/";
+// Only used if ART_SOURCE === "image" (add an images/ folder to the repo):
+const IMAGE_BASE = "https://cdn.jsdelivr.net/gh/myAlexD/radko-game@main/images/";
+
+// image filenames (used only when ART_SOURCE === "image")
+const IMG = {
+  radko:"radko.png", castle:"castle.png",
+  reka:"reka.png", pateka:"pateka.png",
+  darvo:"darvo.png", kamak:"kamak.png",
+  drakon:"drakon.png", zmiya:"zmiya.png",
+  peshtera:"peshtera.png", vodopad:"vodopad.png",
+  vrata:"vrata.png", kapak:"kapak.png",
+  korona:"korona.png", mech:"mech.png"
+};
+// one narration recording per scene id (used when AUDIO_SOURCE === "files")
+const NAR = { s1:"s1.mp3",s2:"s2.mp3",s3:"s3.mp3",s4:"s4.mp3",
+  s5:"s5.mp3",s6:"s6.mp3",s7:"s7.mp3",s8:"s8.mp3" };
+// landing / welcome clip, played on the start screen before the opening narration
+const LANDING_AUDIO = "0-1.mp3";
+
+/* Placeholder narration text — doubles as a recording script.
+   The Р sound sits inside the choice words on purpose.            */
+const SCRIPT = {
+  landing:"Добре дошли в приказката за юнака Радко и вълшебната корона!",
+  s1:"Короната на царя е открадната! Радко тръгва на път. Помни — Радко минава само през неща, в чието име има звукът Р.",
+  s2:"Радко стига до разклон. Накъде — към реката или по пътеката? Кое име има звукът Р?",
+  s3:"Тъмна вода. Да мине по дървото или по камъка? Кое има Р?",
+  s4:"Нещо мърда в храстите! Дракон или змия? Кое има Р?",
+  s5:"Драконът намига и сочи тайно място. Пещера или водопад? Кое има Р?",
+  s6:"Ето го замъкът. През вратата или през капака? Кое има Р?",
+  s7:"Какво да върне Радко на царя? Короната или меча? Кое има Р?",
+  s8:"Браво! Радко върна короната на царя! Ти успя!"
+};
+
+/* ================================================================
+   2. SCENE DATA  —  add Level 2 by appending more scenes here.
+   correct = the word that CONTAINS Р.  next = where it goes.
+   NOTE: scene 2's wrong option was changed from "горска пътека"
+   (which contains Р) to "пътека" so the Р-rule stays consistent.
+   ================================================================ */
+const SCENES = [
+  { id:"s1", type:"start", bg:"bg-dawn", castle:true,
+    title:"Юнакът Радко\nи Вълшебната корона", startLabel:"Тръгваме!", next:"s2" },
+
+  { id:"s2", type:"choice", bg:"bg-forest", step:1, prompt:"Кое име има звукът Р?",
+    choices:[ {key:"reka",label:"река",correct:true,next:"s3"},
+              {key:"pateka",label:"пътека",correct:false} ] },
+
+  { id:"s3", type:"choice", bg:"bg-river", step:2, prompt:"Кое има Р?",
+    choices:[ {key:"darvo",label:"дърво",correct:true,next:"s4"},
+              {key:"kamak",label:"камък",correct:false} ] },
+
+  { id:"s4", type:"choice", bg:"bg-bushes", step:3, prompt:"Кое има Р?",
+    choices:[ {key:"drakon",label:"дракон",correct:true,next:"s5"},
+              {key:"zmiya",label:"змия",correct:false} ] },
+
+  { id:"s5", type:"choice", bg:"bg-vista", step:4, prompt:"Кое има Р?",
+    choices:[ {key:"peshtera",label:"пещера",correct:true,next:"s6"},
+              {key:"vodopad",label:"водопад",correct:false} ] },
+
+  { id:"s6", type:"choice", bg:"bg-gate", step:5, prompt:"Кое има Р?",
+    choices:[ {key:"vrata",label:"врата",correct:true,next:"s7"},
+              {key:"kapak",label:"капак",correct:false} ] },
+
+  { id:"s7", type:"choice", bg:"bg-throne", step:6, prompt:"Кое има Р?",
+    choices:[ {key:"korona",label:"корона",correct:true,next:"s8"},
+              {key:"mech",label:"меч",correct:false} ] },
+
+  { id:"s8", type:"win", bg:"bg-win", title:"Браво!\nРадко успя!",
+    actions:[ {label:"Пак",goto:"s2",cls:"gold"},
+              {label:"Следващо ниво",goto:"level2",cls:"rose"} ] }
+];
+
+/* ================================================================
+   3. PLACEHOLDER ART  —  tiny inline SVGs, flat-storybook style.
+   Used when ART_SOURCE === "svg". Switch to "image" to load real files
+   by hosting and flipping the flag above.
+   ================================================================ */
+const ICON = {
+  radko:`<svg viewBox="0 0 100 100"><circle cx="50" cy="30" r="15" fill="#f2c79b"/><path d="M35 30q15-18 30 0z" fill="#5a3b22"/><rect x="40" y="44" width="20" height="30" rx="8" fill="#2f6b4f"/><path d="M40 46 L24 70 30 74 44 54z" fill="#b23a2e"/><rect x="42" y="72" width="6" height="16" fill="#5a3b22"/><rect x="52" y="72" width="6" height="16" fill="#5a3b22"/></svg>`,
+  castle:`<svg viewBox="0 0 100 100"><rect x="22" y="40" width="56" height="40" fill="#cdbfa6"/><rect x="20" y="30" width="14" height="50" fill="#bcae93"/><rect x="66" y="30" width="14" height="50" fill="#bcae93"/><path d="M20 30h14v-8h-5v4h-4v-4h-5z M66 30h14v-8h-5v4h-4v-4h-5z" fill="#9c8e72"/><rect x="44" y="54" width="12" height="26" rx="6" fill="#6b513a"/><path d="M27 22l5-10 5 10z" fill="#b23a2e"/></svg>`,
+  reka:`<svg viewBox="0 0 100 100"><rect width="100" height="100" fill="none"/><path d="M10 40q15-12 30 0t30 0 30 0" stroke="#3b7ea1" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M10 60q15-12 30 0t30 0 30 0" stroke="#67a9c4" stroke-width="9" fill="none" stroke-linecap="round"/></svg>`,
+  pateka:`<svg viewBox="0 0 100 100"><path d="M40 90 Q70 60 45 40 Q20 20 55 8" stroke="#b98a52" stroke-width="14" fill="none" stroke-linecap="round"/><path d="M40 90 Q70 60 45 40 Q20 20 55 8" stroke="#d8b582" stroke-width="6" fill="none" stroke-dasharray="2 9" stroke-linecap="round"/></svg>`,
+  darvo:`<svg viewBox="0 0 100 100"><rect x="44" y="55" width="12" height="35" fill="#7a5230"/><circle cx="50" cy="40" r="28" fill="#3f7d52"/><circle cx="34" cy="48" r="16" fill="#4d9162"/><circle cx="66" cy="48" r="16" fill="#4d9162"/></svg>`,
+  kamak:`<svg viewBox="0 0 100 100"><path d="M20 78 Q14 50 40 38 Q70 28 82 56 Q88 78 60 82 Z" fill="#9a9488"/><path d="M30 62 Q45 50 62 58" stroke="#7d776c" stroke-width="4" fill="none"/></svg>`,
+  drakon:`<svg viewBox="0 0 100 100"><path d="M22 70 Q18 40 46 42 Q60 30 78 40 L70 50 Q84 54 80 70 Q60 64 52 72 Q34 84 22 70Z" fill="#3f8a4e"/><path d="M46 42 L40 24 56 36Z" fill="#2f6b3c"/><circle cx="68" cy="46" r="3" fill="#1a1a1a"/></svg>`,
+  zmiya:`<svg viewBox="0 0 100 100"><path d="M20 80 Q60 80 50 55 Q42 35 70 30" stroke="#5aa35e" stroke-width="13" fill="none" stroke-linecap="round"/><circle cx="72" cy="28" r="9" fill="#5aa35e"/><circle cx="75" cy="26" r="2" fill="#111"/></svg>`,
+  peshtera:`<svg viewBox="0 0 100 100"><path d="M10 82 Q14 38 50 36 Q86 38 90 82Z" fill="#7d8b6f"/><path d="M34 82 Q36 56 50 55 Q64 56 66 82Z" fill="#2a2420"/></svg>`,
+  vodopad:`<svg viewBox="0 0 100 100"><rect x="26" y="14" width="48" height="14" rx="4" fill="#8a8276"/><g stroke="#67a9c4" stroke-width="6" stroke-linecap="round"><line x1="34" y1="28" x2="34" y2="80"/><line x1="50" y1="28" x2="50" y2="84"/><line x1="66" y1="28" x2="66" y2="80"/></g></svg>`,
+  vrata:`<svg viewBox="0 0 100 100"><path d="M30 86V40a20 20 0 0 1 40 0v46Z" fill="#7a5230"/><path d="M36 86V42a14 14 0 0 1 28 0v44Z" fill="#9a6a3c"/><circle cx="58" cy="62" r="3.5" fill="#d8a435"/></svg>`,
+  kapak:`<svg viewBox="0 0 100 100"><rect x="24" y="34" width="52" height="44" rx="5" fill="#7a5230"/><rect x="30" y="40" width="40" height="32" rx="3" fill="#9a6a3c"/><circle cx="50" cy="56" r="8" fill="none" stroke="#d8a435" stroke-width="4"/></svg>`,
+  korona:`<svg viewBox="0 0 100 100"><path d="M22 70 L18 36 L36 52 L50 28 L64 52 L82 36 L78 70Z" fill="#d8a435" stroke="#b9852a" stroke-width="2"/><rect x="22" y="70" width="56" height="10" rx="3" fill="#b9852a"/><circle cx="50" cy="42" r="4" fill="#b23a2e"/></svg>`,
+  mech:`<svg viewBox="0 0 100 100"><rect x="46" y="14" width="8" height="56" fill="#c8ccd2"/><path d="M46 14h8l-4-8z" fill="#aeb3ba"/><rect x="36" y="68" width="28" height="7" rx="2" fill="#8a6a3c"/><rect x="46" y="74" width="8" height="14" rx="2" fill="#7a5230"/></svg>`
+};
+
+/* ================================================================
+   3b. SCENE BACKGROUNDS  —  full inline-SVG scenery per screen, drawn
+   into the stage behind the hero and choice cards. Keyed by the
+   scene's `bg` suffix (bg-dawn -> dawn). Baked in: no hosting needed.
+   ================================================================ */
+const BG = {
+  dawn:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#ffe3a8"/><rect width="800" height="300" fill="#ffd089"/>
+    <circle cx="650" cy="120" r="58" fill="#fff2c8"/><circle cx="650" cy="120" r="42" fill="#ffe08a"/>
+    <path d="M0 320 Q200 262 400 320 T800 312 V480 H0Z" fill="#9fcf8f"/>
+    <path d="M0 380 Q250 332 500 380 T800 372 V480 H0Z" fill="#7bbd76"/>
+    <g transform="translate(600,232)"><rect x="0" y="22" width="92" height="62" fill="#cdbfa6"/>
+      <rect x="-10" y="0" width="24" height="84" fill="#bcae93"/><rect x="78" y="0" width="24" height="84" fill="#bcae93"/>
+      <path d="M-10 0h24v-10h-6v5h-5v-5h-7z M78 0h24v-10h-6v5h-5v-5h-7z" fill="#9c8e72"/>
+      <rect x="38" y="44" width="16" height="40" rx="7" fill="#6b513a"/><path d="M0 -10l6-13 6 13z" fill="#b23a2e"/></g>
+    <path d="M0 430 Q300 402 600 430 T800 426 V480 H0Z" fill="#5aa861"/>
+    <path d="M370 480 Q415 405 355 362 Q300 322 360 300" stroke="#ecd6a4" stroke-width="42" fill="none" stroke-linecap="round" opacity=".85"/></svg>`,
+
+  forest:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#bfe3ef"/><rect y="170" width="800" height="310" fill="#8ec9a0"/>
+    <path d="M0 300 Q400 252 800 300 V480 H0Z" fill="#5fa56f"/>
+    <g><rect x="66" y="150" width="28" height="150" fill="#6b4a2a"/><circle cx="80" cy="140" r="62" fill="#356b40"/><circle cx="56" cy="168" r="40" fill="#447a4f"/>
+       <rect x="706" y="150" width="28" height="150" fill="#6b4a2a"/><circle cx="720" cy="140" r="62" fill="#356b40"/><circle cx="744" cy="168" r="40" fill="#447a4f"/></g>
+    <path d="M0 392 Q400 360 800 392 V480 H0Z" fill="#3f7d52"/>
+    <path d="M384 480 L330 332 Q322 302 300 292" stroke="#ecd6a4" stroke-width="34" fill="none" stroke-linecap="round"/>
+    <path d="M416 480 L470 332 Q478 302 500 292" stroke="#ecd6a4" stroke-width="34" fill="none" stroke-linecap="round"/></svg>`,
+
+  river:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#a9d3e4"/><rect y="150" width="800" height="330" fill="#6fb6c9"/>
+    <path d="M0 210 Q400 178 800 210 V260 H0Z" fill="#5e8f6e"/>
+    <rect y="258" width="800" height="118" fill="#2f6b7e"/>
+    <path d="M0 286 Q200 272 400 286 T800 286" stroke="#7fbcd0" stroke-width="6" fill="none" opacity=".7"/>
+    <path d="M0 332 Q200 318 400 332 T800 332" stroke="#9ed3e2" stroke-width="5" fill="none" opacity=".6"/>
+    <path d="M0 360 Q400 338 800 360 V480 H0Z" fill="#3f6b3a"/>
+    <path d="M120 410 q14-12 28 0 t28 0" stroke="#5a3b22" stroke-width="9" fill="none" stroke-linecap="round" opacity=".5"/></svg>`,
+
+  bushes:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#cfe6c0"/><rect y="200" width="800" height="280" fill="#86b878"/>
+    <path d="M0 320 Q400 282 800 320 V480 H0Z" fill="#4f7d44"/>
+    <g fill="#3f6b3a"><circle cx="115" cy="332" r="58"/><circle cx="215" cy="348" r="50"/><circle cx="600" cy="342" r="58"/><circle cx="705" cy="332" r="50"/></g>
+    <g fill="#356b40" opacity=".85"><circle cx="168" cy="320" r="36"/><circle cx="652" cy="320" r="36"/></g>
+    <path d="M328 348 Q400 306 472 348 Q472 392 400 392 Q328 392 328 348Z" fill="#243018"/>
+    <circle cx="376" cy="352" r="6" fill="#ffd76b"/><circle cx="424" cy="352" r="6" fill="#ffd76b"/></svg>`,
+
+  vista:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#c7e7f2"/>
+    <path d="M0 286 L160 120 L320 286Z" fill="#a3b6c6"/><path d="M240 286 L420 96 L600 286Z" fill="#8aa1b3"/><path d="M520 286 L680 138 L800 286Z" fill="#a3b6c6"/>
+    <rect y="276" width="800" height="204" fill="#9fd0b6"/>
+    <rect x="118" y="150" width="42" height="140" fill="#8a8276" opacity=".75"/>
+    <g stroke="#dff1f8" stroke-width="5" opacity=".85"><line x1="131" y1="172" x2="131" y2="300"/><line x1="147" y1="172" x2="147" y2="300"/></g>
+    <path d="M598 296 Q608 224 670 222 Q732 224 742 296Z" fill="#6b6256" opacity=".85"/>
+    <path d="M638 296 Q644 252 670 250 Q696 252 702 296Z" fill="#241f1b"/>
+    <path d="M0 360 Q400 330 800 360 V480 H0Z" fill="#5e8f6e"/></svg>`,
+
+  gate:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#d8c6e0"/><rect y="120" width="800" height="360" fill="#9c89ab"/>
+    <rect y="182" width="800" height="298" fill="#b9a98e"/><rect y="162" width="800" height="24" fill="#a3937a"/>
+    <g fill="#a3937a"><rect x="40" y="142" width="40" height="28"/><rect x="170" y="142" width="40" height="28"/><rect x="590" y="142" width="40" height="28"/><rect x="720" y="142" width="40" height="28"/></g>
+    <rect x="56" y="120" width="92" height="360" fill="#cdbfa6"/><rect x="652" y="120" width="92" height="360" fill="#cdbfa6"/>
+    <rect x="46" y="104" width="112" height="22" fill="#b8aa8d"/><rect x="642" y="104" width="112" height="22" fill="#b8aa8d"/>
+    <path d="M326 480 V300 a74 74 0 0 1 148 0 V480Z" fill="#5b4c45"/>
+    <path d="M348 480 V306 a52 52 0 0 1 104 0 V480Z" fill="#46393340" opacity=".5"/></svg>`,
+
+  throne:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#f4dca0"/><rect width="800" height="330" fill="#e0b86a"/>
+    <g fill="#c79a52"><rect x="78" y="36" width="52" height="324"/><rect x="670" y="36" width="52" height="324"/></g>
+    <g fill="#b8893f"><rect x="68" y="26" width="72" height="22"/><rect x="660" y="26" width="72" height="22"/></g>
+    <rect y="358" width="800" height="122" fill="#9c6f37"/>
+    <path d="M338 480 L298 358 H502 L462 480Z" fill="#b23a2e"/>
+    <g transform="translate(355,232)"><rect x="0" y="44" width="90" height="92" fill="#8a5a2a"/>
+      <rect x="-8" y="-12" width="106" height="64" rx="8" fill="#a06a32"/><rect x="8" y="0" width="74" height="46" rx="6" fill="#b23a2e"/>
+      <rect x="-8" y="44" width="14" height="92" fill="#7a4d24"/><rect x="92" y="44" width="14" height="92" fill="#7a4d24"/></g></svg>`,
+
+  win:`<svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+    <rect width="800" height="480" fill="#fff0bf"/><rect width="800" height="300" fill="#ffd76b"/>
+    <g stroke="#ffe9a8" stroke-width="36" opacity=".55"><line x1="400" y1="130" x2="110" y2="-40"/><line x1="400" y1="130" x2="400" y2="-70"/><line x1="400" y1="130" x2="690" y2="-40"/><line x1="400" y1="130" x2="20" y2="150"/><line x1="400" y1="130" x2="780" y2="150"/></g>
+    <rect y="300" width="800" height="180" fill="#e8a13a"/><path d="M0 342 Q400 312 800 342 V480 H0Z" fill="#c9842f"/>
+    <g transform="translate(322,150)"><rect x="0" y="44" width="156" height="130" fill="#cdbfa6"/>
+      <rect x="-18" y="10" width="36" height="164" fill="#bcae93"/><rect x="138" y="10" width="36" height="164" fill="#bcae93"/>
+      <rect x="62" y="96" width="32" height="78" rx="13" fill="#6b513a"/>
+      <path d="M-18 10l18-24 18 24z M138 10l18-24 18 24z" fill="#b23a2e"/><path d="M72 -4l6-20 6 20z" fill="#2f6b4f"/></g></svg>`
+};
+
+/* ================================================================
+   4. AUDIO ENGINE  —  synth chimes always; narration via TTS in
+   placeholder mode or via your <audio> files in real mode.
+   First playback is unlocked by the start-button tap (gesture).
+   ================================================================ */
+let actx=null, currentAudio=null;
+function ac(){ if(!actx){ try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return actx; }
+function tone(freq,dur,when,type,vol){
+  const c=ac(); if(!c) return;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type||"sine"; o.frequency.value=freq;
+  o.connect(g); g.connect(c.destination);
+  const t=c.currentTime+(when||0);
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol||.18,t+.02);
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.start(t); o.stop(t+dur+.05);
+}
+function chimeOk(){ tone(660,.18,0,"sine",.2); tone(880,.28,.12,"sine",.2); }
+function chimeNudge(){ tone(300,.22,0,"triangle",.14); }
+
+function stopNarration(){
+  if(currentAudio){ try{currentAudio.pause();currentAudio.currentTime=0;}catch(e){}
+    currentAudio.onended=currentAudio.onerror=null; currentAudio=null; }
+  if(window.speechSynthesis) speechSynthesis.cancel();
+}
+function speak(text,onend){
+  if(!("speechSynthesis" in window)){ onend&&setTimeout(onend,1400); return; }
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang="bg-BG"; u.rate=.95; u.pitch=1.05;
+  const v=speechSynthesis.getVoices().find(v=>/bg/i.test(v.lang));
+  if(v) u.voice=v;
+  if(onend) u.onend=onend;
+  speechSynthesis.speak(u);
+}
+
+// preloaded <audio> elements keyed by scene id (files mode) so playback
+// is instant and survives replays / "Пак".
+const audioCache={};
+function buildAudioCache(){
+  if(AUDIO_SOURCE!=="files") return;
+  for(const id in NAR){
+    const a=new Audio(); a.preload="auto"; a.src=AUDIO_BASE+NAR[id];
+    audioCache[id]=a;
+  }
+  const land=new Audio(); land.preload="auto"; land.src=AUDIO_BASE+LANDING_AUDIO;
+  audioCache.landing=land;
+}
+function clipSrc(key){ return key==="landing"?AUDIO_BASE+LANDING_AUDIO:AUDIO_BASE+NAR[key]; }
+
+function playNarration(scene){
+  stopNarration();
+  setSpeaker(true);
+  const done=()=>setSpeaker(false);
+  if(AUDIO_SOURCE==="tts"){ speak(SCRIPT[scene.id]||"", done); return; }
+  const a=audioCache[scene.id]||new Audio(clipSrc(scene.id));
+  currentAudio=a; a.onended=done; a.onerror=done;
+  try{ a.currentTime=0; }catch(e){}
+  const p=a.play(); if(p&&p.catch) p.catch(done);
+}
+// play a list of clips back-to-back (used on the start screen: landing -> s1)
+function playSequence(keys,texts){
+  stopNarration();
+  setSpeaker(true);
+  let i=0;
+  const step=()=>{
+    if(i>=keys.length){ setSpeaker(false); return; }
+    const key=keys[i], txt=texts?texts[i]:""; i++;
+    if(AUDIO_SOURCE==="tts"){ speak(txt,step); return; }
+    const a=audioCache[key]||new Audio(clipSrc(key));
+    currentAudio=a; a.onended=step; a.onerror=step;
+    try{ a.currentTime=0; }catch(e){}
+    const p=a.play(); if(p&&p.catch) p.catch(step);
+  };
+  step();
+}
+function playStartSeq(){ playSequence(["landing","s1"],[SCRIPT.landing,SCRIPT.s1]); }
+function setSpeaker(on){
+  document.querySelectorAll(".speaker").forEach(b=>b.classList.toggle("playing",on));
+}
+
+/* ================================================================
+   5. RENDER + STATE MACHINE
+   ================================================================ */
+const app=document.getElementById("app");
+let current=null;
+
+function artHTML(key){
+  if(ART_SOURCE==="svg") return ICON[key]||`<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="30" fill="#ccc"/></svg>`;
+  return `<img src="${IMAGE_BASE+IMG[key]}" alt="">`;
+}
+function heroHTML(){ return ART_SOURCE==="svg"?ICON.radko:`<img src="${IMAGE_BASE+IMG.radko}" alt="">`; }
+function castleHTML(){ return ART_SOURCE==="svg"?ICON.castle:`<img src="${IMAGE_BASE+IMG.castle}" alt="">`; }
+
+function pathStrip(step){
+  let dots="";
+  for(let i=1;i<=6;i++) dots+=`<div class="foot ${i<=step?"done":""}"></div>`;
+  return `<div class="pathstrip">${dots}</div>`;
+}
+
+function sceneryHTML(s){
+  const key=(s.bg||"").replace("bg-","");
+  return `<div class="scenery">${BG[key]||""}</div>`;
+}
+
+function buildScene(s){
+  const el=document.createElement("div");
+  el.className="scene "+s.bg; el.dataset.id=s.id;
+
+  if(s.type==="start"){
+    el.innerHTML=`
+      <div class="stage">
+        ${sceneryHTML(s)}
+        <div class="hero" style="left:14%">${heroHTML()}</div>
+        <div class="centerbox">
+          <h1 class="title">${s.title.replace(/\n/g,"<br>")}</h1>
+          <button class="speaker" data-listen aria-label="Чуй приказката">&#128266;</button>
+          <button class="bigbtn" data-start>${s.startLabel}</button>
+        </div>
+      </div>`;
+    el.querySelector("[data-listen]").onclick=()=>{ ac()&&ac().resume&&ac().resume(); playStartSeq(); };
+    el.querySelector("[data-start]").onclick=()=>{ stopNarration(); ac()&&ac().resume&&ac().resume(); go(s.next); };
+  }
+
+  else if(s.type==="choice"){
+    el.innerHTML=`
+      <div class="stage">
+        ${sceneryHTML(s)}
+        ${pathStrip(s.step)}
+        <div class="hero" style="left:${10+(s.step-1)*13}%">${heroHTML()}</div>
+      </div>
+      <div class="narr">
+        <button class="speaker" data-replay aria-label="Чуй пак">&#128266;</button>
+        <div class="prompt">${s.prompt||""}</div>
+      </div>
+      <div class="choices"></div>`;
+    const wrap=el.querySelector(".choices");
+    // randomize which side the correct card lands on, so the child
+    // can't pattern-match position instead of the Р sound
+    const order = Math.random()<0.5 ? s.choices : [s.choices[1],s.choices[0]];
+    order.forEach(ch=>{
+      const b=document.createElement("button");
+      b.className="card"; b.setAttribute("aria-label",ch.label);
+      b.innerHTML=`<div class="art">${artHTML(ch.key)}</div><div class="name">${ch.label}</div>`;
+      b.onclick=()=>onChoice(ch,b,s);
+      wrap.appendChild(b);
+    });
+    el.querySelector("[data-replay]").onclick=()=>playNarration(s);
+  }
+
+  else if(s.type==="win"){
+    el.innerHTML=`
+      <div class="stage">
+        ${sceneryHTML(s)}
+        ${pathStrip(6)}
+        <div class="hero" style="left:44%">${heroHTML()}</div>
+        <div class="centerbox">
+          <h1 class="title">${s.title.replace(/\n/g,"<br>")}</h1>
+          <div class="winrow">
+            ${s.actions.map(a=>`<button class="bigbtn ${a.cls||""}" data-goto="${a.goto}">${a.label}</button>`).join("")}
+          </div>
+        </div>
+      </div>`;
+    el.querySelectorAll("[data-goto]").forEach(b=>{
+      b.onclick=()=>{ const t=b.dataset.goto; t==="level2"?showLevel2():go(t); };
+    });
+  }
+  return el;
+}
+
+function onChoice(ch,btn,scene){
+  if(ch.correct){
+    btn.classList.add("chosen"); chimeOk();
+    document.querySelectorAll(".card").forEach(c=>c.disabled=true);
+    setTimeout(()=>go(ch.next),650);   // next scene's narration plays the "Браво!"
+  }else{
+    btn.classList.remove("wiggle"); void btn.offsetWidth; // restart animation
+    btn.classList.add("wiggle"); chimeNudge();
+    setTimeout(()=>playNarration(scene),550); // gentle re-listen, no penalty
+  }
+}
+
+function sceneById(id){ return SCENES.find(s=>s.id===id); }
+
+function go(id){
+  const s=sceneById(id); if(!s) return;
+  stopNarration();
+  const old=app.querySelector(".scene.active");
+  const next=buildScene(s);
+  app.appendChild(next);
+  requestAnimationFrame(()=>{
+    next.classList.add("active");
+    if(old){ old.classList.remove("active"); setTimeout(()=>old.remove(),500); }
+  });
+  current=s;
+  if(s.type==="start"){
+    // best-effort autoplay of landing -> opening narration; if the browser
+    // blocks it (no gesture yet) the 🔊 button plays it on first tap
+    setTimeout(()=>playStartSeq(),320);
+  }else{
+    if(s.type==="win") burstConfetti();
+    setTimeout(()=>playNarration(s),420);
+  }
+}
+
+/* ---- overlays ---- */
+function showLevel2(){
+  const o=document.createElement("div"); o.id="overlay";
+  o.innerHTML=`<div style="font-family:var(--display);font-size:30px">Ниво 2</div>
+    <div style="font-size:20px">Очаквай скоро! &#11088;</div>
+    <button class="bigbtn gold" id="back2">Назад</button>`;
+  app.appendChild(o);
+  o.querySelector("#back2").onclick=()=>{ o.remove(); };
+}
+function burstConfetti(){
+  const colors=["#d8a435","#b23a2e","#2f6b4f","#3b7ea1","#fff7e6"];
+  for(let i=0;i<28;i++){
+    const c=document.createElement("div"); c.className="confetti";
+    c.style.left=Math.random()*100+"%";
+    c.style.background=colors[i%colors.length];
+    c.style.animationDuration=(2+Math.random()*1.5)+"s";
+    c.style.animationDelay=(Math.random()*.6)+"s";
+    app.appendChild(c); setTimeout(()=>c.remove(),4200);
+  }
+}
+
+/* ================================================================
+   6. PRELOAD + BOOT
+   ================================================================ */
+function preload(cb){
+  const bar=document.getElementById("barfill");
+  buildAudioCache();   // start buffering hosted audio now (non-blocking; MP3 streams on play)
+  // Audio doesn't gate startup — only images do, and only in image mode.
+  const imgs = ART_SOURCE==="image" ? Object.values(IMG).map(f=>IMAGE_BASE+f) : [];
+  if(imgs.length===0){ // SVG art: nothing to fetch, brief polish sweep
+    let p=0; const t=setInterval(()=>{p+=25;bar.style.width=p+"%";if(p>=100){clearInterval(t);cb();}},70);
+    return;
+  }
+  let done=0, finished=false; const total=imgs.length;
+  const finish=()=>{ if(!finished){ finished=true; clearTimeout(guard); cb(); } };
+  const tick=()=>{ done++; bar.style.width=Math.round(done/total*100)+"%"; if(done>=total) finish(); };
+  const guard=setTimeout(finish,8000); // never hang the loader
+  imgs.forEach(u=>{ const im=new Image(); im.onload=im.onerror=tick; im.src=u; });
+}
+
+window.addEventListener("load",()=>{
+  if(window.speechSynthesis) speechSynthesis.getVoices(); // warm up voices
+  preload(()=>{
+    document.getElementById("loader").classList.add("hidden");
+    go("s1");
+  });
+});
+</script>
+</body>
+</html>

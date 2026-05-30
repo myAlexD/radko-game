@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Приключенията на Радко</title>
+<style>
+  /* ============================================================
+     IMAGE-BACKED ENGINE
+     Each scene is a full-bleed 16:9 illustration (the art IS the
+     screen). Interactions are invisible tap-HOTSPOTS positioned in
+     percentages over the things drawn into the picture.
+     No external JS libraries, no localStorage — Canva Code safe.
+     ============================================================ */
+  :root{
+    --gold:#d8a435; --gold-deep:#b9852a; --rose:#b23a2e;
+    --ink:#3a2a18; --ok:#3ea35a; --night:#10141c;
+    --ui:"Segoe UI Rounded","SF Pro Rounded",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --shadow:0 10px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:var(--ui); background:var(--night);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+  }
+  /* 16:9 letterboxed stage that always fits the viewport */
+  #app{
+    position:relative; width:min(100vw,177.78vh); height:min(56.25vw,100vh);
+    aspect-ratio:16/9; overflow:hidden; background:#000;
+    box-shadow:0 0 60px rgba(0,0,0,.6);
+  }
+
+  .scene{position:absolute; inset:0; opacity:0; transition:opacity .45s ease;
+    pointer-events:none;}
+  .scene.active{opacity:1; pointer-events:auto;}
+  .scene .bg{position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; display:block; user-select:none; -webkit-user-drag:none;}
+
+  /* ---- hotspots (invisible by default, tappable) ---- */
+  .hot{position:absolute; border:none; background:transparent; cursor:pointer;
+    border-radius:18px; padding:0; margin:0; transition:transform .12s, box-shadow .2s;
+    -webkit-tap-highlight-color:transparent;}
+  .hot:active{transform:scale(.97);}
+  /* a gentle invite: hotspots glow briefly when the child is idle */
+  .hot.hint{box-shadow:0 0 0 4px rgba(255,255,255,.55), 0 0 26px 6px rgba(216,164,53,.55);
+    animation:breathe 1.1s ease-in-out 2;}
+  @keyframes breathe{0%,100%{box-shadow:0 0 0 3px rgba(255,255,255,.35),0 0 18px 4px rgba(216,164,53,.4)}
+    50%{box-shadow:0 0 0 6px rgba(255,255,255,.7),0 0 30px 10px rgba(216,164,53,.7)}}
+  .hot.chosen{animation:pop .5s;}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+  /* DEBUG: show the boxes so coordinates can be tuned against the art */
+  body.debug .hot{outline:2px dashed rgba(255,0,0,.8); background:rgba(255,0,0,.12);}
+  body.debug .hot.correct{outline-color:rgba(40,200,90,.95); background:rgba(40,200,90,.16);}
+  body.debug .hot.nav{outline-color:rgba(60,150,255,.95); background:rgba(60,150,255,.16);}
+  body.debug .hot::after{content:attr(data-tag); position:absolute; left:4px; top:2px;
+    font:600 12px var(--ui); color:#fff; text-shadow:0 1px 2px #000; pointer-events:none;}
+
+  /* ripple shown where a wrong tap lands */
+  .ripple{position:absolute; width:18px; height:18px; margin:-9px 0 0 -9px;
+    border-radius:50%; border:3px solid var(--rose); pointer-events:none;
+    animation:ripple .6s ease-out forwards;}
+  @keyframes ripple{from{opacity:.9;transform:scale(.4)}to{opacity:0;transform:scale(4)}}
+
+  /* ---- floating controls ---- */
+  .controls{position:absolute; left:2.2%; bottom:3.5%; display:flex; gap:10px; z-index:6;}
+  .cbtn{width:clamp(40px,6vh,56px); height:clamp(40px,6vh,56px); border-radius:50%;
+    border:3px solid rgba(255,255,255,.65); cursor:pointer; color:#fff;
+    font-size:clamp(18px,3vh,26px); display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 35% 30%,#ffd97a,var(--gold-deep)); box-shadow:var(--shadow);}
+  .cbtn:active{transform:scale(.9);}
+  .cbtn.home{background:radial-gradient(circle at 35% 30%,#aeb9c9,#4a5568);}
+  .cbtn.playing{animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(216,164,53,.5)}50%{box-shadow:0 0 0 12px rgba(216,164,53,0)}}
+
+  /* progress pips for choice scenes */
+  .pips{position:absolute; top:3.5%; right:3%; display:flex; gap:8px; z-index:6;}
+  .pip{width:clamp(8px,1.4vh,13px); height:clamp(8px,1.4vh,13px); border-radius:50%;
+    background:rgba(255,255,255,.35); box-shadow:0 1px 3px rgba(0,0,0,.4);}
+  .pip.done{background:var(--gold); box-shadow:0 0 0 3px rgba(216,164,53,.3);}
+
+  /* tiny toast (e.g. locked level) */
+  .toast{position:absolute; left:50%; top:46%; transform:translate(-50%,-50%) scale(.9);
+    background:rgba(16,20,28,.92); color:#fff; padding:14px 22px; border-radius:16px;
+    font:600 clamp(15px,2.6vh,22px) var(--display); box-shadow:var(--shadow); z-index:9;
+    opacity:0; transition:opacity .25s, transform .25s; text-align:center; pointer-events:none;}
+  .toast.show{opacity:1; transform:translate(-50%,-50%) scale(1);}
+
+  /* confetti on win */
+  .confetti{position:absolute; width:10px; height:14px; top:-20px; border-radius:2px;
+    z-index:7; animation:fall linear forwards;}
+  @keyframes fall{to{transform:translateY(120vh) rotate(540deg); opacity:.9}}
+
+  /* loader */
+  #loader{position:absolute; inset:0; z-index:20; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:18px; background:var(--night); color:#f6ecd4;}
+  .bar{width:54%; max-width:300px; height:12px; border-radius:8px; background:#2a2f3a; overflow:hidden;}
+  .bar>i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--gold),var(--gold-deep)); transition:width .25s;}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="loader">
+    <div style="font-family:var(--display);font-size:clamp(20px,4vh,30px)">Приключенията на Радко</div>
+    <div class="bar"><i id="barfill"></i></div>
+    <div style="opacity:.8">Зарежда приказката…</div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   1. CONFIG  —  the block you normally edit
+   ================================================================
+   ART_BASE / AUDIO_BASE switch between local dev files and the hosted
+   jsDelivr copies. Develop locally, then flip both to the jsDelivr URLs
+   before pasting into Canva Code (localhost is not reachable by anyone).
+
+   DEBUG = true draws the hotspot boxes so you can tune coordinates
+   against the real artwork (also toggle live with the "d" key).        */
+
+const DEBUG      = false;
+
+// PUBLISHED — art + audio hosted via jsDelivr (Canva-ready, works anywhere):
+const ART_BASE   = "https://cdn.jsdelivr.net/gh/myAlexD/radko-game@main/scene/web/";
+const AUDIO_BASE = "https://cdn.jsdelivr.net/gh/myAlexD/radko-game@main/audio/";
+// for offline local dev, swap the two lines above for these:
+// const ART_BASE   = "scene/web/";
+// const AUDIO_BASE = "audio/";
+
+const IMG_EXT = ".jpg";
+
+// narration recordings (Level 1 only for now). "landing" = welcome clip.
+const NAR = { landing:"0-1.mp3",
+  s1:"s1.mp3", s2:"s2.mp3", s3:"s3.mp3", s4:"s4.mp3",
+  s5:"s5.mp3", s6:"s6.mp3", s7:"s7.mp3", s8:"s8.mp3" };
+
+/* Reference text. Level 1 doubles as the recording script. Level 2's
+   questions are baked into the artwork (no recordings yet → silent).   */
+const SCRIPT = {
+  landing:"Добре дошли в приказката за юнака Радко!",
+  s1:"Короната на царя е открадната! Радко тръгва на път. Помни — Радко минава само през неща, в чието име има звукът Р.",
+  s2:"Радко стига до разклон. Към реката или по пътеката? Кое име има звукът Р?",
+  s3:"Да мине по дървото или по камъка? Кое има Р?",
+  s4:"Нещо мърда в храстите! Дракон или змия? Кое има Р?",
+  s5:"Пещера или водопад? Кое има Р?",
+  s6:"През вратата или през капака? Кое има Р?",
+  s7:"Короната или меча? Кое има Р?",
+  s8:"Браво! Радко върна короната на царя! Ти успя!"
+};
+
+/* ================================================================
+   2. SCENE DATA  —  the whole game
+   ----------------------------------------------------------------
+   Each scene: { id, type, img, audio, ... }
+     type "menu"   level-select.
+     type "title"  level title card (tap the baked Старт button).
+     type "choice" tap the thing whose NAME contains Р.
+     type "win"    finale + confetti.
+   Hotspots are % of the frame: {x,y,w,h, ...}
+     correct:true  + next:id   → the Р answer (advances)
+     (neither)                  → a wrong answer (gentle nudge)
+     goto:id                    → navigation (menu/title/win buttons)
+     locked:"msg"               → not built yet (shows a toast)
+   ================================================================ */
+const L1_STEPS = 6, L2_STEPS = 6;
+const SCENES = [
+  { id:"menu", type:"menu", img:"menu", audio:"landing", hotspots:[
+      { x:21, y:42, w:52, h:6, goto:"l1-title", tag:"Ниво 1" },
+      { x:21, y:49, w:52, h:6, goto:"l2-title", tag:"Ниво 2" },
+      { x:21, y:56, w:52, h:6, locked:"Ниво 3 идва скоро! ⭐", tag:"Ниво 3" },
+      { x:29, y:77, w:44, h:12, goto:"l1-title", tag:"Старт" } ] },
+
+  /* ---------- LEVEL 1 — Радко и Вълшебната корона (voiced) ---------- */
+  { id:"l1-title", type:"title", img:"l1-title", audio:"s1", hotspots:[
+      { x:35, y:83, w:30, h:12, goto:"l1-1", tag:"Старт" } ] },
+
+  { id:"l1-1", type:"choice", img:"l1-s1-reka", lvl:1, step:1, audio:"s2", hotspots:[
+      { x:40, y:38, w:58, h:58, correct:true, next:"l1-2", tag:"река ✓" },
+      { x:0,  y:62, w:30, h:36, tag:"пътека" } ] },
+
+  { id:"l1-2", type:"choice", img:"l1-s2-darvo", lvl:1, step:2, audio:"s3", hotspots:[
+      { x:0,  y:4,  w:22, h:92, correct:true, next:"l1-3", tag:"дърво ✓" },
+      { x:62, y:55, w:36, h:42, tag:"камък" } ] },
+
+  { id:"l1-3", type:"choice", img:"l1-s3-drakon", lvl:1, step:3, audio:"s4", hotspots:[
+      { x:5,  y:40, w:29, h:46, correct:true, next:"l1-4", tag:"дракон ✓" },
+      { x:67, y:46, w:27, h:44, tag:"змия" } ] },
+
+  { id:"l1-4", type:"choice", img:"l1-s4-peshtera", lvl:1, step:4, audio:"s5", hotspots:[
+      { x:31, y:18, w:21, h:52, correct:true, next:"l1-5", tag:"пещера ✓" },
+      { x:64, y:8,  w:36, h:88, tag:"водопад" } ] },
+
+  { id:"l1-5", type:"choice", img:"l1-s5-vrata", lvl:1, step:5, audio:"s6", hotspots:[
+      { x:40, y:27, w:22, h:55, correct:true, next:"l1-6", tag:"врата ✓" },
+      { x:6,  y:78, w:30, h:20, tag:"капак" } ] },
+
+  { id:"l1-6", type:"choice", img:"l1-s6-korona", lvl:1, step:6, audio:"s7", hotspots:[
+      { x:26, y:41, w:17, h:30, correct:true, next:"l1-win", tag:"корона ✓" },
+      { x:45, y:46, w:24, h:18, tag:"меч" } ] },
+
+  { id:"l1-win", type:"win", img:"l1-win", audio:"s8", level:1, hotspots:[
+      { x:27, y:87, w:46, h:11, goto:"l2-title", tag:"Ниво 2 →" } ] },
+
+  /* ---------- LEVEL 2 — Драконовата планина (silent: baked questions) ----------
+     NOTE: "Намира оръжие" beat is skipped — its art (rock/broom/tulip)
+     contains no Р-word, so there is no valid choice. Re-illustrate to add it. */
+  { id:"l2-title", type:"title", img:"l2-title", audio:null, hotspots:[
+      { x:24, y:74, w:42, h:13, goto:"l2-1", tag:"Старт" } ] },
+
+  { id:"l2-1", type:"choice", img:"l2-s1-krepost", lvl:2, step:1, audio:null, hotspots:[
+      { x:3,  y:28, w:37, h:54, correct:true, next:"l2-3", tag:"крепост ✓" },
+      { x:70, y:18, w:29, h:70, tag:"скала" } ] },
+
+  { id:"l2-3", type:"choice", img:"l2-s3-krokodil", lvl:2, step:2, audio:null, hotspots:[
+      { x:7,  y:60, w:28, h:32, correct:true, next:"l2-4", tag:"крокодил ✓" },
+      { x:73, y:50, w:25, h:42, tag:"лъв" } ] },
+
+  { id:"l2-4", type:"choice", img:"l2-s4-bradva", lvl:2, step:3, audio:null, hotspots:[
+      { x:5,  y:44, w:19, h:38, correct:true, next:"l2-5", tag:"брадва ✓" },
+      { x:40, y:55, w:28, h:26, tag:"лодка" },
+      { x:77, y:56, w:17, h:32, tag:"кукла" } ] },
+
+  { id:"l2-5", type:"choice", img:"l2-s5-drakon", lvl:2, step:4, audio:null, hotspots:[
+      { x:3,  y:36, w:27, h:48, correct:true, next:"l2-6", tag:"дракон ✓" },
+      { x:40, y:42, w:22, h:34, tag:"слон" },
+      { x:73, y:60, w:23, h:28, tag:"лебед" } ] },
+
+  { id:"l2-6", type:"choice", img:"l2-s6-vrata", lvl:2, step:5, audio:null, hotspots:[
+      { x:39, y:57, w:21, h:35, correct:true, next:"l2-7", tag:"врата ✓" },
+      { x:71, y:39, w:19, h:43, tag:"стълба" } ] },
+
+  { id:"l2-7", type:"choice", img:"l2-s7-printsesa", lvl:2, step:6, audio:null, hotspots:[
+      { x:3,  y:27, w:27, h:61, correct:true, next:"l2-win", tag:"принцеса ✓" },
+      { x:42, y:16, w:20, h:30, tag:"ангел" } ] },
+
+  { id:"l2-win", type:"win", img:"l2-win", audio:null, level:2, hotspots:[
+      { x:32, y:89, w:36, h:10, goto:"menu", tag:"Меню" } ] }
+];
+
+/* ================================================================
+   3. AUDIO ENGINE  —  synth chimes always; narration via hosted MP3s
+   (only where a scene has an `audio` key). First playback is unlocked
+   by the first user tap (autoplay-safe).
+   ================================================================ */
+let actx=null, currentAudio=null;
+function ac(){ if(!actx){ try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return actx; }
+function tone(freq,dur,when,type,vol){
+  const c=ac(); if(!c) return;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type||"sine"; o.frequency.value=freq; o.connect(g); g.connect(c.destination);
+  const t=c.currentTime+(when||0);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol||.18,t+.02);
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.start(t); o.stop(t+dur+.05);
+}
+function chimeOk(){ tone(660,.18,0,"sine",.2); tone(880,.28,.12,"sine",.2); }
+function chimeNudge(){ tone(300,.22,0,"triangle",.14); }
+
+const audioCache={};
+function buildAudioCache(){
+  for(const id in NAR){ const a=new Audio(); a.preload="auto"; a.src=AUDIO_BASE+NAR[id]; audioCache[id]=a; }
+}
+function stopNarration(){
+  if(currentAudio){ try{currentAudio.pause();currentAudio.currentTime=0;}catch(e){}
+    currentAudio.onended=currentAudio.onerror=null; currentAudio=null; }
+}
+function setSpeaker(on){ document.querySelectorAll(".cbtn.replay").forEach(b=>b.classList.toggle("playing",on)); }
+function playKey(key){
+  stopNarration(); if(!key||!NAR[key]) return;
+  setSpeaker(true);
+  const done=()=>setSpeaker(false);
+  const a=audioCache[key]||new Audio(AUDIO_BASE+NAR[key]);
+  currentAudio=a; a.onended=done; a.onerror=done;
+  try{ a.currentTime=0; }catch(e){}
+  const p=a.play(); if(p&&p.catch) p.catch(done);
+}
+
+/* ================================================================
+   4. RENDER + STATE MACHINE
+   ================================================================ */
+const app=document.getElementById("app");
+let current=null, idleTimer=null;
+
+function imgURL(slug){ return ART_BASE+slug+IMG_EXT; }
+
+function controlsHTML(scene){
+  let html=`<div class="controls">`;
+  if(scene.type!=="menu") html+=`<button class="cbtn home" data-home aria-label="Към менюто">&#127968;</button>`;
+  if(scene.audio) html+=`<button class="cbtn replay" data-replay aria-label="Чуй пак">&#128266;</button>`;
+  html+=`</div>`;
+  return html;
+}
+function pipsHTML(scene){
+  if(scene.type!=="choice") return "";
+  const total = scene.lvl===2?L2_STEPS:L1_STEPS;
+  let p=""; for(let i=1;i<=total;i++) p+=`<div class="pip ${i<=scene.step?"done":""}"></div>`;
+  return `<div class="pips">${p}</div>`;
+}
+
+function buildScene(s){
+  const el=document.createElement("div");
+  el.className="scene"; el.dataset.id=s.id;
+  el.innerHTML=`<img class="bg" src="${imgURL(s.img)}" alt="">${pipsHTML(s)}${controlsHTML(s)}`;
+
+  (s.hotspots||[]).forEach(h=>{
+    const b=document.createElement("button");
+    b.className="hot"+(h.correct?" correct":"")+((h.goto||h.locked)?" nav":"");
+    b.style.cssText=`left:${h.x}%;top:${h.y}%;width:${h.w}%;height:${h.h}%`;
+    b.dataset.tag=h.tag||"";
+    b.setAttribute("aria-label",(h.tag||"").replace(" ✓",""));
+    b.addEventListener("click",ev=>onHotspot(h,b,s,ev));
+    el.appendChild(b);
+  });
+
+  const home=el.querySelector("[data-home]"); if(home) home.onclick=()=>go("menu");
+  const rep=el.querySelector("[data-replay]"); if(rep) rep.onclick=()=>playKey(s.audio);
+  return el;
+}
+
+function onHotspot(h,btn,scene,ev){
+  unlockAudio();
+  clearTimeout(idleTimer);
+  if(h.locked){ toast(h.locked); chimeNudge(); return; }
+  if(h.goto){ btn.classList.add("chosen"); chimeOk(); setTimeout(()=>go(h.goto),250); return; }
+  if(h.correct){
+    btn.classList.add("chosen"); chimeOk();
+    scene._answered=true;
+    document.querySelectorAll(".scene.active .hot").forEach(x=>x.disabled=true);
+    setTimeout(()=>go(h.next),650);
+  }else{
+    chimeNudge(); rippleAt(ev);
+    if(scene.audio) setTimeout(()=>playKey(scene.audio),450);  // gentle re-listen
+  }
+}
+
+function rippleAt(ev){
+  const stage=document.querySelector(".scene.active"); if(!stage||!ev) return;
+  const r=stage.getBoundingClientRect();
+  const d=document.createElement("div"); d.className="ripple";
+  d.style.left=(ev.clientX-r.left)+"px"; d.style.top=(ev.clientY-r.top)+"px";
+  stage.appendChild(d); setTimeout(()=>d.remove(),650);
+}
+
+function toast(msg){
+  const stage=document.querySelector(".scene.active"); if(!stage) return;
+  const t=document.createElement("div"); t.className="toast"; t.textContent=msg;
+  stage.appendChild(t); requestAnimationFrame(()=>t.classList.add("show"));
+  setTimeout(()=>{ t.classList.remove("show"); setTimeout(()=>t.remove(),300); },1700);
+}
+
+function scheduleIdleHint(scene){
+  clearTimeout(idleTimer);
+  if(scene.type!=="choice") return;
+  idleTimer=setTimeout(()=>{
+    document.querySelectorAll(".scene.active .hot").forEach(h=>{
+      h.classList.remove("hint"); void h.offsetWidth; h.classList.add("hint");
+    });
+    scheduleIdleHint(scene); // keep inviting every few seconds
+  },4500);
+}
+
+function sceneById(id){ return SCENES.find(s=>s.id===id); }
+
+function go(id){
+  const s=sceneById(id); if(!s) return;
+  stopNarration(); clearTimeout(idleTimer);
+  const old=app.querySelector(".scene.active");
+  const next=buildScene(s);
+  app.appendChild(next);
+  requestAnimationFrame(()=>{
+    next.classList.add("active");
+    if(old){ old.classList.remove("active"); setTimeout(()=>old.remove(),500); }
+  });
+  current=s;
+  if(s.type==="win") burstConfetti();
+  if(s.audio) setTimeout(()=>playKey(s.audio),420);
+  scheduleIdleHint(s);
+}
+
+function unlockAudio(){ const c=ac(); if(c&&c.resume) c.resume(); }
+
+function burstConfetti(){
+  const colors=["#d8a435","#b23a2e","#2f6b4f","#3b7ea1","#fff7e6"];
+  for(let i=0;i<32;i++){
+    const c=document.createElement("div"); c.className="confetti";
+    c.style.left=Math.random()*100+"%"; c.style.background=colors[i%colors.length];
+    c.style.animationDuration=(2+Math.random()*1.6)+"s";
+    c.style.animationDelay=(Math.random()*.6)+"s";
+    app.appendChild(c); setTimeout(()=>c.remove(),4400);
+  }
+}
+
+/* ================================================================
+   5. PRELOAD + BOOT
+   ================================================================ */
+function preload(cb){
+  const bar=document.getElementById("barfill");
+  buildAudioCache(); // buffer hosted audio (non-blocking)
+  const urls=SCENES.map(s=>imgURL(s.img));
+  let done=0, finished=false; const total=urls.length;
+  const finish=()=>{ if(!finished){ finished=true; clearTimeout(guard); cb(); } };
+  const tick=()=>{ done++; bar.style.width=Math.round(done/total*100)+"%"; if(done>=total) finish(); };
+  const guard=setTimeout(finish,9000); // never hang the loader
+  urls.forEach(u=>{ const im=new Image(); im.onload=im.onerror=tick; im.src=u; });
+}
+
+function applyDebug(on){ document.body.classList.toggle("debug",on); }
+
+window.addEventListener("load",()=>{
+  applyDebug(DEBUG);
+  // toggle debug live with the "d" key while tuning hotspots
+  window.addEventListener("keydown",e=>{ if(e.key==="d"||e.key==="D") applyDebug(!document.body.classList.contains("debug")); });
+  // unlock audio on the very first interaction anywhere
+  ["pointerdown","touchstart","keydown"].forEach(ev=>
+    window.addEventListener(ev,unlockAudio,{once:true,passive:true}));
+  preload(()=>{
+    document.getElementById("loader").classList.add("hidden");
+    go("menu");
+  });
+});
+</script>
+</body>
+</html>
